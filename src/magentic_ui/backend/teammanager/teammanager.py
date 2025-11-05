@@ -274,6 +274,28 @@ class TeamManager:
                 # If no MCP configurations in config file, use frontend settings
                 settings_config["mcp_agent_configs"] = settings_mcp_configs
 
+            # Logic here: extract ParaView agent configuration from config file if present
+            # If valid: the configuration file takes precedent over the UI settings to configure ParaView agent for team
+            # If invalid: we disregard the configuration file and use the UI settings (if any) to configure ParaView agent for team
+
+            paraview_agent_config_from_file = self.config.get("paraview_agent_config", None)
+            if paraview_agent_config_from_file:
+                try:
+                    # Validate and parse the ParaView agent config
+                    from ...agents.paraview import ParaViewAgentConfig
+                    parsed_paraview_config = ParaViewAgentConfig(**paraview_agent_config_from_file)
+                    settings_config["paraview_agent_config"] = parsed_paraview_config
+                    logger.info(f"ParaView agent configuration loaded from config file: {parsed_paraview_config.name}")
+                except Exception as e:
+                    logger.warning(f"Failed to load ParaView agent config from file: {e}")
+                    # Fall back to settings_config if it has paraview_agent_config
+                    if "paraview_agent_config" not in settings_config:
+                        settings_config["paraview_agent_config"] = None
+            else:
+                # If no ParaView configuration in config file, check if it exists in settings
+                if "paraview_agent_config" not in settings_config:
+                    settings_config["paraview_agent_config"] = None
+
             # Common configuration parameters
             config_params = {
                 **settings_config,  # type: ignore,

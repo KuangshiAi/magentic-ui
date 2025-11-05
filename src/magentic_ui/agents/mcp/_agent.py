@@ -36,7 +36,7 @@ class McpAgent(AssistantAgent):
                 "model_context" not in kwargs
             ), "Only one of model_context_token_limit and model_context kwargs are allowed."
             model_context = TokenLimitedChatCompletionContext(
-                model_client=self._model_client, token_limit=model_context_token_limit
+                model_client=model_client, token_limit=model_context_token_limit
             )
             kwargs["model_context"] = model_context
 

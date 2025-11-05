@@ -4,6 +4,7 @@ from autogen_core import ComponentModel
 from pydantic import BaseModel, Field
 
 from .agents.mcp import McpAgentConfig
+from .agents.paraview import ParaViewAgentConfig
 from .types import Plan
 
 
@@ -99,6 +100,7 @@ class MagenticUIConfig(BaseModel):
 
     model_client_configs: ModelClientConfigs = Field(default_factory=ModelClientConfigs)
     mcp_agent_configs: List[McpAgentConfig] = Field(default_factory=lambda: [])
+    paraview_agent_config: Optional[ParaViewAgentConfig] = None
     cooperative_planning: bool = True
     autonomous_execution: bool = False
     allowed_websites: Optional[List[str]] = None

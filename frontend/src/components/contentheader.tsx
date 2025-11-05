@@ -6,7 +6,7 @@ import { useConfigStore } from "../hooks/store";
 import { Settings } from "lucide-react";
 import SignInModal from "./signin";
 import SettingsModal from "./settings/SettingsModal";
-import logo from "../assets/logo.svg";
+import logo from "../assets/new_logo.png";
 import { Button } from "./common/Button";
 
 type ContentHeaderProps = {
@@ -64,8 +64,8 @@ const ContentHeader = ({
             )}
           </div>
           <div className="flex items-center space-x-2">
-            <img src={logo} alt="Magentic-UI Logo" className="h-10 w-10" />
-            <div className="text-primary text-2xl font-bold">Magentic-UI</div>
+            <img src={logo} alt="HILSVA Logo" className="h-10 w-10" />
+            <div className="text-primary text-2xl font-bold">HILSVA</div>
           </div>
         </div>
 

@@ -17,7 +17,7 @@ export interface FunctionCall {
 
 export interface FunctionExecutionResult {
   call_id: string;
-  content: string;
+  content: string | (string | ImageContent)[];  // Support multimodal results with images
 }
 
 // Base message configuration (maps to Python BaseMessage)

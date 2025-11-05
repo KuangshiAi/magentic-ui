@@ -229,6 +229,16 @@ class Orchestrator(BaseGroupChatManager):
                 )
             ]
         )
+
+        # DEBUG: Log the team description
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info("=" * 80)
+        logger.info("ORCHESTRATOR TEAM DESCRIPTION:")
+        logger.info("=" * 80)
+        logger.info(self._team_description)
+        logger.info("=" * 80)
+
         self._last_browser_metadata_hash = ""
 
     def _get_system_message_planning(
@@ -236,19 +246,35 @@ class Orchestrator(BaseGroupChatManager):
     ) -> str:
         date_today = datetime.now().strftime("%Y-%m-%d")
         if self._config.autonomous_execution:
-            return get_orchestrator_system_message_planning_autonomous(
+            system_msg = get_orchestrator_system_message_planning_autonomous(
                 self._config.sentinel_plan.enable_sentinel_steps
             ).format(
                 date_today=date_today,
                 team=self._team_description,
             )
         else:
-            return get_orchestrator_system_message_planning(
+            system_msg = get_orchestrator_system_message_planning(
                 self._config.sentinel_plan.enable_sentinel_steps
             ).format(
                 date_today=date_today,
                 team=self._team_description,
             )
+
+        # DEBUG: Log the full system message with team description
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info("=" * 80)
+        logger.info("FULL ORCHESTRATOR SYSTEM MESSAGE FOR PLANNING:")
+        logger.info("=" * 80)
+        logger.info(system_msg)
+        logger.info("=" * 80)
+        if 'paraview' in system_msg.lower():
+            logger.info("✓ ParaView IS in the system message")
+        else:
+            logger.error("✗ ParaView NOT in the system message!")
+        logger.info("=" * 80)
+
+        return system_msg
 
     def _get_task_ledger_plan_prompt(self, team: str) -> str:
         additional_instructions = ""

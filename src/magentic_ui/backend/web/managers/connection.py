@@ -597,7 +597,109 @@ class WebSocketManager:
                     ToolCallExecutionEvent,
                 ),
             ):
-                return {"type": "message", "data": message.model_dump()}
+                message_dump = message.model_dump()
+
+                # Special handling for ToolCallExecutionEvent with image content
+                if isinstance(message, ToolCallExecutionEvent):
+                    import re
+                    content = message_dump.get("content")
+                    metadata = message_dump.get("metadata", {})
+
+                    # Debug: Log when we process a screenshot
+                    if metadata.get("type") == "paraview_screenshot":
+                        print(f"[DEBUG] Processing paraview_screenshot - content type: {type(content)}")
+
+                    # Handle string content with embedded images
+                    if isinstance(content, str) and "[Image: " in content:
+                        # Parse the string to extract images
+                        processed_content = []
+                        pattern = r'\[Image: ([^\]]+)\]'
+
+                        # Find all images
+                        matches = list(re.finditer(pattern, content))
+
+                        if matches:
+                            last_end = 0
+                            for match in matches:
+                                # Add text before the image
+                                text_before = content[last_end:match.start()].strip()
+                                if text_before:
+                                    processed_content.append(text_before)
+
+                                # Add the image
+                                base64_data = match.group(1)
+                                processed_content.append({
+                                    "url": f"data:image/png;base64,{base64_data}",
+                                    "alt": "Screenshot",
+                                })
+                                last_end = match.end()
+
+                            # Add any remaining text
+                            text_after = content[last_end:].strip()
+                            if text_after:
+                                processed_content.append(text_after)
+
+                            message_dump["content"] = processed_content
+
+                    # Handle list content
+                    elif isinstance(content, list):
+                        processed_content = []
+                        for item in content:
+                            # Handle FunctionExecutionResult items (they have a 'content' field inside)
+                            if isinstance(item, dict) and 'content' in item and 'call_id' in item:
+                                # This is a FunctionExecutionResult, extract its content
+                                inner_content = item.get('content', '')
+                                if isinstance(inner_content, str) and "[Image: " in inner_content:
+                                    # Parse embedded image - ONLY add the image object, not the string
+                                    match = re.match(r'\[Image: ([^\]]+)\]', inner_content)
+                                    if match:
+                                        base64_data = match.group(1)
+                                        processed_content.append({
+                                            "url": f"data:image/png;base64,{base64_data}",
+                                            "alt": "Screenshot",
+                                        })
+                                        # Successfully processed image, skip adding the text
+                                        continue
+                                # If we get here and inner_content is not an image string, skip it if empty
+                                # Don't append anything for FunctionExecutionResult with images
+                            elif isinstance(item, dict) and item.get("type") == "image":
+                                # Convert MCP image format to frontend format
+                                processed_content.append({
+                                    "url": f"data:image/png;base64,{item.get('data', '')}",
+                                    "alt": item.get("alt", "Screenshot"),
+                                })
+                            elif isinstance(item, str) and "[Image: " in item:
+                                # Handle string items with embedded images
+                                match = re.match(r'\[Image: ([^\]]+)\]', item)
+                                if match:
+                                    base64_data = match.group(1)
+                                    processed_content.append({
+                                        "url": f"data:image/png;base64,{base64_data}",
+                                        "alt": "Screenshot",
+                                    })
+                                else:
+                                    processed_content.append(item)
+                            else:
+                                processed_content.append(item)
+                        message_dump["content"] = processed_content
+
+                        # Debug: Log the processed content
+                        if metadata.get("type") == "paraview_screenshot":
+                            print(f"[DEBUG] Processed list content - {len(processed_content)} items")
+                            if processed_content:
+                                print(f"[DEBUG] First item has keys: {list(processed_content[0].keys()) if isinstance(processed_content[0], dict) else 'not a dict'}")
+
+                # Filter base64 strings from BaseTextChatMessage content
+                # This prevents the LLM from echoing back raw base64 in its responses
+                if isinstance(message, BaseTextChatMessage) and not isinstance(message, ToolCallExecutionEvent):
+                    import re
+                    content = message_dump.get("content")
+                    if isinstance(content, str) and "[Image:" in content:
+                        # Remove all [Image: base64...] patterns from the text
+                        filtered_content = re.sub(r'\[Image: [^\]]+\]', '[Screenshot]', content)
+                        message_dump["content"] = filtered_content
+
+                return {"type": "message", "data": message_dump}
             elif isinstance(message, str):
                 return {
                     "type": "message",

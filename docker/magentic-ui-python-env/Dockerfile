@@ -1,44 +1,37 @@
-# Build stage
-FROM python:3.12-slim AS builder
-ENV EXIFTOOL_PATH=/usr/bin/exiftool
-ENV FFMPEG_PATH=/usr/bin/ffmpeg
-# Install build dependencies
+FROM continuumio/miniconda3:latest
+
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
-    build-essential \
-    git \
     ffmpeg \
     exiftool \
     && rm -rf /var/lib/apt/lists/*
 
+# Set environment variables
+ENV EXIFTOOL_PATH=/usr/bin/exiftool
+ENV FFMPEG_PATH=/usr/bin/ffmpeg
 
+# Create environment with Python 3.10 (better ParaView support on ARM64)
+RUN conda create -n paraview-env python=3.10 -y
 
-# Create and activate virtual environment
-RUN python -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
+# Activate environment and install ParaView only first
+SHELL ["/bin/bash", "-c"]
+RUN source activate paraview-env && \
+    conda install -c conda-forge paraview -y
 
-# Install Python packages
+# Copy requirements and install remaining packages
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN source activate paraview-env && \
+    pip install --no-cache-dir -r requirements.txt
 
-# Final stage
-FROM python:3.12-slim
-
-# Install FFmpeg and its dependencies
-RUN apt-get update && apt-get install -y \
-    ffmpeg \
-    && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /workspace
-
-# Copy virtual environment from builder
-COPY --from=builder /opt/venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
+# Set up environment activation for all future commands
+ENV PATH=/opt/conda/envs/paraview-env/bin:$PATH
+ENV CONDA_DEFAULT_ENV=paraview-env
 
 # Set Python to run in unbuffered mode
 ENV PYTHONUNBUFFERED=1
 
-RUN mkdir -p /workspace
 WORKDIR /workspace
+RUN mkdir -p /workspace
 
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh

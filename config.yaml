@@ -1,0 +1,54 @@
+gpt4o_client: &gpt4o_client
+    provider: OpenAIChatCompletionClient
+    config:
+      model: gpt-4o-2024-08-06
+      api_key: null
+      base_url: null
+      max_retries: 5
+
+orchestrator_client: *gpt4o_client
+coder_client: *gpt4o_client
+web_surfer_client: *gpt4o_client
+file_surfer_client: *gpt4o_client
+action_guard_client: *gpt4o_client
+plan_learning_client: *gpt4o_client
+
+paraview_agent_config:
+  name: paraview_visualizer
+  width: 1280
+  height: 800
+  gui_connect_wait_time: 5  # Adjust this based on your machine speed
+  description: |
+    An agent that can control ParaView for 3D scientific visualization and data analysis.
+    It has access to a ParaView instance running in Docker that it can control.
+
+    In a single step when you ask the agent to do something, it can perform multiple ParaView operations sequentially:
+    - Load scientific data files (VTK, VTI, VTP, STL, OBJ, PLY, etc.)
+    - Create and manipulate visualization pipelines: contour/isosurface, slice, clip, threshold, streamlines
+    - Apply filters and transformations to data
+    - Create volume renderings and surface representations
+    - Adjust visualization properties: colors, opacity, lighting, camera angles
+    - Export visualizations as images or processed data files
+    - Access ParaView's full scientific visualization capabilities
+
+    The ParaView GUI is accessible via noVNC web interface for viewing results.
+    Use this agent for any 3D visualization, scientific data analysis, or volumetric rendering tasks.
+
+  model_client:
+    provider: OpenAIChatCompletionClient
+    config:
+      model: gpt-4o
+
+  # Context management - limit tokens to prevent overflow
+  # gpt-4o has 128k context, set limit to 100k to leave room for response
+  model_context_token_limit: 100000
+
+  # Docker settings
+  paraview_image: "paraview-novnc:latest"
+  novnc_port: 6080
+  pvserver_port: 11111
+  data_dir: "/Users/kuangshiai/Documents/ND-VIS/Code/magentic-ui/docker/data"
+
+  # MCP server paths (update these for your system)
+  paraview_mcp_python_path: "/Users/kuangshiai/miniconda3/envs/paraview_mcp/bin/python"
+  paraview_mcp_script_path: "/Users/kuangshiai/Documents/ND-VIS/Code/magentic-ui/src/paraview_mcp/paraview_mcp_server.py"

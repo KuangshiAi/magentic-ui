@@ -263,6 +263,54 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
               {children}
             </blockquote>
           ),
+          img: ({ src, alt }) => {
+            const [isModalOpen, setIsModalOpen] = useState(false);
+            return (
+              <>
+                <img
+                  src={src}
+                  alt={alt}
+                  style={{
+                    maxWidth: "600px",
+                    maxHeight: "400px",
+                    cursor: "pointer",
+                    borderRadius: "0.375rem",
+                    marginTop: "0.5rem",
+                    marginBottom: "0.5rem",
+                  }}
+                  onClick={() => setIsModalOpen(true)}
+                />
+                {isModalOpen && (
+                  <div
+                    style={{
+                      position: "fixed",
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      backgroundColor: "rgba(0, 0, 0, 0.9)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      zIndex: 9999,
+                      cursor: "pointer",
+                    }}
+                    onClick={() => setIsModalOpen(false)}
+                  >
+                    <img
+                      src={src}
+                      alt={alt}
+                      style={{
+                        maxWidth: "95%",
+                        maxHeight: "95%",
+                        objectFit: "contain",
+                      }}
+                    />
+                  </div>
+                )}
+              </>
+            );
+          },
         }}
       >
         {truncate ? truncatedContent : processedContent}

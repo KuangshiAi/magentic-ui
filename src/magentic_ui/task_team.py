@@ -7,6 +7,7 @@ from autogen_core.models import ChatCompletionClient
 
 from .agents import USER_PROXY_DESCRIPTION, CoderAgent, FileSurfer, WebSurfer
 from .agents.mcp import McpAgent
+from .agents.paraview import ParaViewAgent
 from .agents.users import DummyUserProxy, MetadataUserProxy
 from .agents.web_surfer import WebSurferConfig
 from .approval_guard import (
@@ -225,6 +226,17 @@ async def get_task_team(
         for config in magentic_ui_config.mcp_agent_configs
     ]
 
+    # Setup ParaView agent if configured
+    paraview_agent: Optional[ParaViewAgent] = None
+    if magentic_ui_config.paraview_agent_config is not None:
+        # Inject the inside_docker and network_name settings from main config
+        # This ensures ParaView Docker manager uses the same settings as the rest of the system
+        paraview_config = magentic_ui_config.paraview_agent_config
+        paraview_config.inside_docker = magentic_ui_config.inside_docker
+        paraview_config.network_name = magentic_ui_config.network_name
+
+        paraview_agent = ParaViewAgent._from_config(paraview_config)
+
     if (
         orchestrator_config.memory_controller_key is not None
         and orchestrator_config.retrieve_relevant_plans in ["reuse", "hint"]
@@ -246,6 +258,8 @@ async def get_task_team(
         assert file_surfer is not None
         team_participants.extend([coder_agent, file_surfer])
     team_participants.extend(mcp_agents)
+    if paraview_agent is not None:
+        team_participants.append(paraview_agent)
 
     team = GroupChat(
         participants=team_participants,
