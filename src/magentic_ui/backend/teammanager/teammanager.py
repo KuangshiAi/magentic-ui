@@ -296,6 +296,29 @@ class TeamManager:
                 if "paraview_agent_config" not in settings_config:
                     settings_config["paraview_agent_config"] = None
 
+            # Logic here: extract PVPython Coder agent configuration from config file if present
+            # If valid: the configuration file takes precedent over the UI settings to configure PVPython Coder agent for team
+            # If invalid: we disregard the configuration file and use the UI settings (if any) to configure PVPython Coder agent for team
+
+            pvpython_coder_agent_config_from_file = self.config.get("pvpython_coder_agent_config", None)
+            if pvpython_coder_agent_config_from_file:
+                try:
+                    # Validate and parse the PVPython Coder agent config
+                    # Note: PVPython functionality is now integrated into CoderAgent
+                    from ...magentic_ui_config import PVPythonCoderAgentConfig
+                    parsed_pvpython_coder_config = PVPythonCoderAgentConfig(**pvpython_coder_agent_config_from_file)
+                    settings_config["pvpython_coder_agent_config"] = parsed_pvpython_coder_config
+                    logger.info(f"PVPython Coder agent configuration loaded from config file (will be used by CoderAgent): {parsed_pvpython_coder_config.name}")
+                except Exception as e:
+                    logger.warning(f"Failed to load PVPython Coder agent config from file: {e}")
+                    # Fall back to settings_config if it has pvpython_coder_agent_config
+                    if "pvpython_coder_agent_config" not in settings_config:
+                        settings_config["pvpython_coder_agent_config"] = None
+            else:
+                # If no PVPython Coder configuration in config file, check if it exists in settings
+                if "pvpython_coder_agent_config" not in settings_config:
+                    settings_config["pvpython_coder_agent_config"] = None
+
             # Common configuration parameters
             config_params = {
                 **settings_config,  # type: ignore,

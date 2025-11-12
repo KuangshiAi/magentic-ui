@@ -25,7 +25,7 @@ class ParaViewAgentConfig(McpAgentConfig):
     data_dir: Path | None = None
     auto_gui_connect: bool = True
     inside_docker: bool = False  # Default to False for running outside Docker
-    network_name: str = "my-network"  # Docker network name
+    network_name: str = "my-network"  # Docker network name (must match across all containers)
     width: int = 1920  # VNC display width for better fit in Live View
     height: int = 1080  # VNC display height for better fit in Live View
     gui_connect_wait_time: int = 6  # Seconds to wait for GUI to connect before MCP (adjust for machine speed)

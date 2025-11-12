@@ -14,7 +14,7 @@ action_guard_client: *gpt4o_client
 plan_learning_client: *gpt4o_client
 
 paraview_agent_config:
-  name: paraview_visualizer
+  name: paraview_mcp
   width: 1280
   height: 800
   gui_connect_wait_time: 5  # Adjust this based on your machine speed
@@ -52,3 +52,48 @@ paraview_agent_config:
   # MCP server paths (update these for your system)
   paraview_mcp_python_path: "/Users/kuangshiai/miniconda3/envs/paraview_mcp/bin/python"
   paraview_mcp_script_path: "/Users/kuangshiai/Documents/ND-VIS/Code/magentic-ui/src/paraview_mcp/paraview_mcp_server.py"
+
+pvpython_coder_agent_config:
+  name: pvpython_coder
+  description: |
+    An agent that generates and executes ParaView Python (pvpython) code for visualization.
+
+    This agent can:
+    - Generate pvpython code based on natural language descriptions
+    - Use a knowledge base of ParaView operations for accurate code generation
+    - Execute generated code on the pvserver running in Docker
+    - Debug and iteratively refine code based on execution errors
+    - Handle complex visualization workflows including data loading, filtering, rendering, and screenshots
+
+    The agent has access to a comprehensive database of ParaView operations and can:
+    - Load various data formats (VTK, VTI, VTP, VTR, etc.)
+    - Apply filters (contours, slices, clips, thresholds, glyphs, tubes)
+    - Create volume renderings and surface visualizations
+    - Set up color maps and transfer functions
+    - Configure cameras and multiple views
+    - Generate and save screenshots
+
+    Use this agent when you need programmatic control over ParaView visualizations
+    or want to create custom visualization pipelines through code.
+
+  model_client:
+    provider: OpenAIChatCompletionClient
+    config:
+      model: gpt-4o
+
+  # PVServer connection settings (must match paraview_agent_config)
+  pvserver_host: "localhost"
+  pvserver_port: 11111
+
+  # Path to operations.json is automatically set to agent directory
+  # operations_json_path: "src/magentic_ui/agents/pvpython_coder/operations.json"
+
+  # Path to pvpython in Docker container
+  pvpython_path: "/opt/paraview/bin/pvpython"
+
+  # Execution settings
+  max_retry_attempts: 3
+  top_k_operations: 5
+
+  # Debug settings - save generated code for inspection
+  debug_dir: "/Users/kuangshiai/Documents/ND-VIS/Code/magentic-ui/pvpython_debug"

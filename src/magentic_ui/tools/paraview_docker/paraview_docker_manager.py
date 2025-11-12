@@ -106,12 +106,9 @@ class ParaViewDockerManager(Component[ParaViewDockerManagerConfig]):
         self._gui_connect_wait_time = gui_connect_wait_time
 
         self._container: Optional[Container] = None
-        self._hostname = (
-            f"paraview-container-{self._pvserver_port}"
-            if inside_docker
-            else "127.0.0.1"
-        )
-        self._docker_name = f"paraview-container-{self._pvserver_port}"
+        # Use static hostname for Docker network resolution
+        self._docker_name = "paraview-server"
+        self._hostname = self._docker_name  # Same for consistency
 
     def _get_available_port(self) -> tuple[int, socket.socket]:
         """Get an available port on the local machine."""
@@ -126,12 +123,8 @@ class ParaViewDockerManager(Component[ParaViewDockerManagerConfig]):
         self._vnc_port, vnc_sock = self._get_available_port()
         self._pvserver_port, pvserver_sock = self._get_available_port()
 
-        self._hostname = (
-            f"paraview-container-{self._pvserver_port}"
-            if self._inside_docker
-            else "127.0.0.1"
-        )
-        self._docker_name = f"paraview-container-{self._pvserver_port}"
+        # Keep static container name and hostname
+        # self._docker_name and self._hostname are already set in __init__
 
         novnc_sock.close()
         vnc_sock.close()
@@ -215,7 +208,7 @@ class ParaViewDockerManager(Component[ParaViewDockerManagerConfig]):
             image=self._image,
             detach=True,
             auto_remove=True,
-            network=self._network_name if self._inside_docker else None,
+            network=self._network_name,  # Always use network for container-to-container communication
             platform="linux/amd64",  # ParaView container is built for amd64
             ports={
                 f"{self._novnc_port}/tcp": self._novnc_port,
@@ -233,6 +226,37 @@ class ParaViewDockerManager(Component[ParaViewDockerManagerConfig]):
             return
 
         try:
+            # Create docker network if it doesn't exist (for container communication)
+            # Always create network for container-to-container communication
+            client = docker.from_env()
+            try:
+                await asyncio.to_thread(client.networks.get, self._network_name)
+                logger.info(f"Docker network '{self._network_name}' already exists")
+            except docker.errors.NotFound:
+                await asyncio.to_thread(client.networks.create, self._network_name, driver="bridge")
+                logger.info(f"Created Docker network: {self._network_name}")
+
+            # Check if a container with this name already exists
+            try:
+                existing_container = await asyncio.to_thread(
+                    client.containers.get, self._docker_name
+                )
+                logger.info(f"Found existing container: {self._docker_name}")
+
+                # Check if it's running
+                await asyncio.to_thread(existing_container.reload)
+                if existing_container.status == "running":
+                    logger.info("Existing container is running, reusing it")
+                    self._container = existing_container
+                    return
+                else:
+                    logger.info("Existing container is not running, removing it")
+                    await asyncio.to_thread(existing_container.remove, force=True)
+            except docker.errors.NotFound:
+                # No existing container, proceed with creation
+                logger.info(f"No existing container found with name: {self._docker_name}")
+                pass
+
             # Create and start the container
             self._container = await self._create_container()
             await asyncio.to_thread(self._container.start)

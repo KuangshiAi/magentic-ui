@@ -32,13 +32,7 @@ export const SessionManager: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [editingSession, setEditingSession] = useState<Session | undefined>();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
-    if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("sessionSidebar");
-      return stored !== null ? JSON.parse(stored) : true;
-    }
-    return true;
-  });
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Always hide sidebar
   const [messageApi, contextHolder] = message.useMessage();
   const [sessionSockets, setSessionSockets] = useState<SessionWebSockets>({});
   const [sessionRunStatuses, setSessionRunStatuses] = useState<{
@@ -50,11 +44,7 @@ export const SessionManager: React.FC = () => {
   const { user } = useContext(appContext);
   const { session, setSession, sessions, setSessions } = useConfigStore();
 
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("sessionSidebar", JSON.stringify(isSidebarOpen));
-    }
-  }, [isSidebarOpen]);
+  // Remove localStorage effect for sidebar (no longer needed)
 
   const fetchSessions = useCallback(async () => {
     if (!user?.email) return;
@@ -62,17 +52,15 @@ export const SessionManager: React.FC = () => {
     try {
       setIsLoading(true);
       const data = await sessionAPI.listSessions(user.email);
-      setSessions(data);
 
-      // Only set first session if there's no sessionId in URL
-      const params = new URLSearchParams(window.location.search);
-      const sessionId = params.get("sessionId");
-      if (!session && data.length > 0 && !sessionId) {
-        setSession(data[0]);
+      // Always use only one session
+      if (data.length === 0) {
+        // No sessions exist, create one
+        await createDefaultSession();
       } else {
-        if (data.length === 0) {
-          createDefaultSession();
-        }
+        // Use the first (and only) session
+        setSessions([data[0]]);
+        setSession(data[0]);
       }
     } catch (error) {
       console.error("Error fetching sessions:", error);
@@ -80,32 +68,9 @@ export const SessionManager: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [user?.email, setSessions, session, setSession]);
+  }, [user?.email, setSessions, setSession]);
 
-  // Handle initial URL params
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const sessionId = params.get("sessionId");
-
-    if (sessionId && !session) {
-      handleSelectSession({ id: parseInt(sessionId) } as Session);
-    }
-  }, []);
-
-  // Handle browser back/forward
-  useEffect(() => {
-    const handleLocationChange = () => {
-      const params = new URLSearchParams(window.location.search);
-      const sessionId = params.get("sessionId");
-
-      if (!sessionId && session) {
-        setSession(null);
-      }
-    };
-
-    window.addEventListener("popstate", handleLocationChange);
-    return () => window.removeEventListener("popstate", handleLocationChange);
-  }, [session]);
+  // Remove URL parameter handling (single session mode)
 
   const handleSaveSession = async (sessionData: Partial<Session>) => {
     if (!user || !user.email) return;
@@ -153,14 +118,51 @@ export const SessionManager: React.FC = () => {
     }
   };
 
-  const handleEditSession = (session?: Session) => {
+  const handleEditSession = async (session?: Session) => {
     setIsLoading(true);
     if (session) {
       setEditingSession(session);
       setIsEditorOpen(true);
     } else {
-      // this means we are creating a new session
-      handleSaveSession({});
+      // Creating a new session - delete all previous sessions first
+      try {
+        // Close all WebSocket connections
+        Object.entries(sessionSockets).forEach(([sessionId, { socket }]) => {
+          if (socket && socket.readyState === WebSocket.OPEN) {
+            socket.send(
+              JSON.stringify({
+                type: "stop",
+                reason: "Creating new session",
+              })
+            );
+            socket.close();
+          }
+        });
+
+        // Delete all existing sessions
+        if (sessions.length > 0) {
+          for (const s of sessions) {
+            if (s.id) {
+              try {
+                await sessionAPI.deleteSession(s.id, user?.email || "");
+              } catch (error) {
+                console.error(`Error deleting session ${s.id}:`, error);
+              }
+            }
+          }
+        }
+
+        // Clear sessions and sockets
+        setSessions([]);
+        setSessionSockets({});
+        setSession(null);
+
+        // Create new session
+        await handleSaveSession({});
+      } catch (error) {
+        console.error("Error cleaning up sessions:", error);
+        messageApi.error("Error cleaning up previous sessions");
+      }
     }
     setIsLoading(false);
   };
@@ -460,56 +462,16 @@ export const SessionManager: React.FC = () => {
       <ContentHeader
         isMobileMenuOpen={isMobileMenuOpen}
         onMobileMenuToggle={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-        isSidebarOpen={isSidebarOpen}
-        onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+        isSidebarOpen={false}
+        onToggleSidebar={() => {}}
         onNewSession={() => handleEditSession()}
+        onNewPlan={() => setActiveSubMenuItem("saved_plan")}
       />
 
       <div className="flex flex-1 relative">
-        <div
-          className={`absolute left-0 top-0 h-full transition-all duration-200 ease-in-out ${
-            isSidebarOpen ? "w-77" : "w-0"
-          }`}
-        >
-          <Sidebar
-            isOpen={isSidebarOpen}
-            sessions={sessions}
-            currentSession={session}
-            onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
-            onSelectSession={handleSelectSession}
-            onEditSession={handleEditSession}
-            onDeleteSession={handleDeleteSession}
-            isLoading={isLoading}
-            sessionRunStatuses={sessionRunStatuses}
-            activeSubMenuItem={activeSubMenuItem}
-            onSubMenuChange={setActiveSubMenuItem}
-            onStopSession={(sessionId: number) => {
-              if (sessionId === undefined || sessionId === null) return;
-              const id = Number(sessionId);
-              // Find the session's socket and close it, update status
-              const ws = sessionSockets[id]?.socket;
-              if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(
-                  JSON.stringify({
-                    type: "stop",
-                    reason: "Cancelled by user (sidebar)",
-                  })
-                );
-                ws.close();
-              }
-              setSessionRunStatuses((prev) => ({
-                ...prev,
-                [id]: "stopped",
-              }));
-            }}
-          />
-        </div>
+        {/* Sidebar removed - single session mode */}
 
-        <div
-          className={`flex-1 transition-all -mr-4 duration-200 w-[200px] ${
-            isSidebarOpen ? "ml-64" : "ml-0"
-          }`}
-        >
+        <div className="flex-1 -mr-4 w-[200px] ml-0">
           {
           activeSubMenuItem === "mcp_servers" ? (
             <div className="h-full overflow-hidden pl-4">

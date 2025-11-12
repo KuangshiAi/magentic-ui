@@ -1,5 +1,5 @@
 import React from "react";
-import { PanelLeftClose, PanelLeftOpen, Plus } from "lucide-react";
+import { PanelLeftClose, PanelLeftOpen, Plus, FileText } from "lucide-react";
 import { Tooltip } from "antd";
 import { appContext } from "../hooks/provider";
 import { useConfigStore } from "../hooks/store";
@@ -15,12 +15,14 @@ type ContentHeaderProps = {
   isSidebarOpen: boolean;
   onToggleSidebar: () => void;
   onNewSession: () => void;
+  onNewPlan?: () => void;
 };
 
 const ContentHeader = ({
   isSidebarOpen,
   onToggleSidebar,
   onNewSession,
+  onNewPlan,
 }: ContentHeaderProps) => {
   const { user } = React.useContext(appContext);
   useConfigStore();
@@ -32,37 +34,36 @@ const ContentHeader = ({
       <div className="flex h-16 items-center justify-between">
         {/* Left side: Text and Sidebar Controls */}
         <div className="flex items-center">
-          {/* Sidebar Toggle */}
-          <Tooltip title={isSidebarOpen ? "Close Sidebar" : "Open Sidebar"}>
-            <Button
-              variant="tertiary"
-              size="sm"
-              icon={
-                isSidebarOpen ? (
-                  <PanelLeftClose strokeWidth={1.5} className="h-6 w-6" />
-                ) : (
-                  <PanelLeftOpen strokeWidth={1.5} className="h-6 w-6" />
-                )
-              }
-              onClick={onToggleSidebar}
-              className="!px-0 transition-colors hover:text-accent"
-            />
-          </Tooltip>
+          {/* Sidebar toggle removed - single session mode */}
 
           {/* New Session Button */}
           <div className="w-[40px]">
-            {!isSidebarOpen && (
-              <Tooltip title="Create new session">
+            <Tooltip title="Create new session">
+              <Button
+                variant="tertiary"
+                size="sm"
+                icon={<Plus className="w-6 h-6" />}
+                onClick={onNewSession}
+                className="transition-colors hover:text-accent"
+              />
+            </Tooltip>
+          </div>
+
+          {/* New Plan Button */}
+          {onNewPlan && (
+            <div className="w-[40px]">
+              <Tooltip title="Create new plan">
                 <Button
                   variant="tertiary"
                   size="sm"
-                  icon={<Plus className="w-6 h-6" />}
-                  onClick={onNewSession}
+                  icon={<FileText className="w-6 h-6" />}
+                  onClick={onNewPlan}
                   className="transition-colors hover:text-accent"
                 />
               </Tooltip>
-            )}
-          </div>
+            </div>
+          )}
+
           <div className="flex items-center space-x-2">
             <img src={logo} alt="HILSVA Logo" className="h-10 w-10" />
             <div className="text-primary text-2xl font-bold">HILSVA</div>

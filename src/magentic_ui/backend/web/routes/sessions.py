@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from loguru import logger
 
 from ...datamodel import Message, Run, Session, RunStatus
-from ..deps import get_db
+from ..deps import get_db, get_websocket_manager
 
 router = APIRouter()
 

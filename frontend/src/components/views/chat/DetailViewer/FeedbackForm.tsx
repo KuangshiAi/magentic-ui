@@ -1,7 +1,7 @@
 import React from "react";
 import { Input } from "antd";
 import { EyeOff } from "lucide-react";
-import { Button } from "../../../../components/common/Button";
+import { Button } from "../../../common/Button";
 
 const { TextArea } = Input;
 

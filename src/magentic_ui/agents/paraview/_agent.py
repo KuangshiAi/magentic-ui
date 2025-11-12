@@ -96,13 +96,14 @@ class ParaViewAgent(McpAgent):
 
     async def lazy_init(self) -> None:
         """
-        Initialize the ParaView Docker container on first use.
+        Initialize ParaView Docker container and connect MCP.
 
         This method:
         - Starts the ParaView Docker container
         - Waits for pvserver to be ready
-        - Captures port information for GUI access
-        - Sets up the MCP connection to ParaView
+        - Waits for GUI to auto-connect
+        - Sets up MCP connection to pvserver
+        - Captures port information for noVNC access
         """
         import logging
         logger = logging.getLogger(__name__)
@@ -114,20 +115,20 @@ class ParaViewAgent(McpAgent):
             return
 
         if self._paraview_docker_manager is not None:
+            # Start the ParaView Docker container (includes GUI auto-connect wait)
             logger.info("Starting ParaView Docker container...")
-            # Start the ParaView container
             await self._paraview_docker_manager.start()
 
             # Capture port information
             self.novnc_port = self._paraview_docker_manager.novnc_port
             self.pvserver_port = self._paraview_docker_manager.pvserver_port
 
-            logger.info(f"ParaView container started. noVNC port: {self.novnc_port}, pvserver port: {self.pvserver_port}")
+            logger.info(f"ParaView Docker started. noVNC port: {self.novnc_port}, pvserver port: {self.pvserver_port}")
 
             # Mark that we just initialized so we can send the browser address
             self._paraview_just_initialized = True
         else:
-            logger.warning("ParaView Docker manager is None - cannot start container")
+            logger.warning("ParaView Docker manager is None")
 
         self._did_lazy_init = True
 

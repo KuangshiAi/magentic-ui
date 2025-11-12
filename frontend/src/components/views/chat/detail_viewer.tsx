@@ -1,12 +1,9 @@
 import React, { useState, useRef, lazy, Suspense } from "react";
 import {
-  ChevronLeft,
-  ChevronRight,
   Maximize2,
   MousePointerClick,
   X,
 } from "lucide-react";
-import { ClickableImage } from "../atoms";
 import BrowserIframe from "./DetailViewer/browser_iframe";
 import BrowserModal from "./DetailViewer/browser_modal";
 import FullscreenOverlay from "./DetailViewer/fullscreen_overlay"; // Import our new component
@@ -98,30 +95,6 @@ const DetailViewer: React.FC<DetailViewerProps> = ({
     setShowControlHandoverForm(true);
   };
 
-  // Add keyboard navigation
-  React.useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "ArrowLeft") {
-        handlePrevious();
-      } else if (event.key === "ArrowRight") {
-        handleNext();
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [currentIndex]);
-
-  const handlePrevious = () => {
-    const newIndex = currentIndex > 0 ? currentIndex - 1 : images.length - 1;
-    onIndexChange(newIndex);
-  };
-
-  const handleNext = () => {
-    const newIndex = currentIndex < images.length - 1 ? currentIndex + 1 : 0;
-    onIndexChange(newIndex);
-  };
-
   const handleTabChange = (tab: TabType) => {
     if (onTabChange) {
       onTabChange(tab);
@@ -133,52 +106,6 @@ const DetailViewer: React.FC<DetailViewerProps> = ({
   const handleMaximizeClick = () => {
     setIsModalOpen(true);
   };
-
-  const renderScreenshotsTab = () => (
-    <>
-      <div className="flex flex-col h-[65vh] w-full">
-        {images.length === 0 ? (
-          <div className="flex-1 w-full flex items-center justify-center">
-            <p>No screenshots</p>
-          </div>
-        ) : (
-          <>
-            <div className="relative flex-1 flex items-center justify-center overflow-y-auto">
-              <div className="w-full h-full flex flex-col items-center justify-center">
-                {/* Pill navigation overlay */}
-                <div className="absolute border top-4 left-1/2 transform -translate-x-1/2 z-10 bg-secondary rounded-full px-3 py-1 flex items-center justify-center gap-4 shadow-md">
-                  <button
-                    onClick={handlePrevious}
-                    className="text-primary hover:text-opacity-80 transition-colors"
-                  >
-                    <ChevronLeft size={18} />
-                  </button>
-
-                  <p className="text-sm text-primary">
-                    {currentIndex + 1} / {images.length}
-                  </p>
-
-                  <button
-                    onClick={handleNext}
-                    className="text-primary hover:text-opacity-80 transition-colors"
-                  >
-                    <ChevronRight size={18} />
-                  </button>
-                </div>
-
-                <ClickableImage
-                  src={images[currentIndex]}
-                  alt={imageTitles[currentIndex]}
-                  className="max-w-full max-h-full object-contain rounded"
-                  expandedClassName="object-contain max-h-[80vh] max-w-[90vw] w-auto h-auto"
-                />
-              </div>
-            </div>
-          </>
-        )}
-      </div>
-    </>
-  );
 
   const renderLiveTab = React.useMemo(() => {
     if (!novncPort) {
@@ -213,7 +140,7 @@ const DetailViewer: React.FC<DetailViewerProps> = ({
             isControlMode={isControlMode}
             serverUrl={serverHost}
           />
-        ) : (
+        ) : novncPort ? (
           <div
             className="relative w-full h-full flex flex-col"
             onMouseEnter={() => {}} // Moved overlay to BrowserIframe
@@ -221,6 +148,7 @@ const DetailViewer: React.FC<DetailViewerProps> = ({
           >
             <Suspense fallback={<div>Loading VNC viewer...</div>}>
               <VncScreen
+                key={`vnc-${novncPort}`}
                 url={`ws://${serverHost}:${novncPort}`}
                 scaleViewport
                 background="#000000"
@@ -236,6 +164,13 @@ const DetailViewer: React.FC<DetailViewerProps> = ({
               />
             </Suspense>
           </div>
+        ) : (
+          <div className="flex items-center justify-center w-full h-full text-secondary">
+            <div className="text-center">
+              <div className="text-lg mb-2">Initializing ParaView...</div>
+              <div className="text-sm">Please wait while the Docker container starts</div>
+            </div>
+          </div>
         )}
       </div>
     );
@@ -250,26 +185,9 @@ const DetailViewer: React.FC<DetailViewerProps> = ({
         {/* Tabs and Controls */}
         <div className="flex justify-between items-center mb-4 border-b flex-shrink-0">
           <div className="flex">
-            <button
-              className={`px-6 py-2 font-medium rounded-t-lg transition-colors ${
-                activeTab === "screenshots"
-                  ? "bg-secondary text-primary border-2 border-b-0 border-primary"
-                  : "text-secondary hover:text-primary hover:bg-secondary/10"
-              }`}
-              onClick={() => handleTabChange("screenshots")}
-            >
-              Screenshots
-            </button>
-            <button
-              className={`px-6 py-2 font-medium rounded-t-lg transition-colors ${
-                activeTab === "live"
-                  ? "bg-secondary text-primary border-2 border-b-0 border-primary"
-                  : "text-secondary hover:text-primary hover:bg-secondary/10"
-              }`}
-              onClick={() => handleTabChange("live")}
-            >
+            <div className="px-6 py-2 font-medium text-primary">
               Live View
-            </button>
+            </div>
           </div>
 
           <div className="flex gap-2">
@@ -298,7 +216,7 @@ const DetailViewer: React.FC<DetailViewerProps> = ({
         </div>
 
         <div className="flex-1 flex flex-col min-h-0">
-          {activeTab === "screenshots" ? renderScreenshotsTab() : renderLiveTab}
+          {renderLiveTab}
         </div>
       </div>
 

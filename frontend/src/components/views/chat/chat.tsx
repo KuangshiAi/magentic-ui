@@ -100,9 +100,12 @@ export default function ChatView({
     React.useState(true);
   const [showDetailViewer, setShowDetailViewer] = React.useState(true);
   const [hasFinalAnswer, setHasFinalAnswer] = React.useState(false);
-  
+
   // MCP Server selection state - lifted from ChatInput
   const [selectedMcpServers, setSelectedMcpServers] = React.useState<string[]>([]);
+
+  // Track if we've already initialized ParaView for this session
+  const paraviewInitializedRef = React.useRef<Set<number>>(new Set());
 
 
   // Context and config
@@ -240,6 +243,45 @@ export default function ChatView({
       };
     }
   }, [session?.id]);
+
+  // ParaView auto-initialization disabled
+  // If you want to re-enable automatic ParaView initialization when a dialogue starts,
+  // uncomment the code below:
+  /*
+  React.useEffect(() => {
+    const initializeParaView = () => {
+      if (
+        visible &&
+        session?.id &&
+        currentRun?.id &&
+        !paraviewInitializedRef.current.has(session.id)
+      ) {
+        // Mark this session as initialized
+        paraviewInitializedRef.current.add(session.id);
+
+        // Check if there's a ParaView agent in the team config
+        const hasParaViewAgent =
+          teamConfig?.participants?.some(
+            (p: any) => p.name?.toLowerCase().includes("paraview")
+          ) || true; // Default to true if no team config yet
+
+        if (hasParaViewAgent) {
+          // Send "Initialize ParaView" message to trigger agent initialization
+          console.log("Auto-initializing ParaView via message...");
+          const initMessage = "Initialize ParaView";
+          runTask(initMessage, [], undefined, true);
+        }
+      }
+    };
+
+    // Small delay to ensure session is fully loaded
+    const timeoutId = setTimeout(() => {
+      initializeParaView();
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [visible, session?.id, currentRun?.id, teamConfig?.participants]);
+  */
 
   // Add ref to track previous status
   const previousStatus = React.useRef<SidebarRunStatus | null>(null);

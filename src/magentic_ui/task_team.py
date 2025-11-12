@@ -201,6 +201,21 @@ async def get_task_team(
     coder_agent: CoderAgent | None = None
     file_surfer: FileSurfer | None = None
     if not magentic_ui_config.run_without_docker:
+        # Determine if PVPython RAG should be enabled
+        # Enable if ParaView agent is configured or pvpython_coder_agent_config exists
+        enable_pvpython_rag = (
+            magentic_ui_config.paraview_agent_config is not None or
+            magentic_ui_config.pvpython_coder_agent_config is not None
+        )
+
+        # Get pvserver settings from ParaView config if available
+        pvserver_host = "paraview-server"
+        pvserver_port = 11111
+        if magentic_ui_config.paraview_agent_config is not None:
+            pvserver_port = magentic_ui_config.paraview_agent_config.pvserver_port
+        elif magentic_ui_config.pvpython_coder_agent_config is not None:
+            pvserver_port = magentic_ui_config.pvpython_coder_agent_config.pvserver_port
+
         coder_agent = CoderAgent(
             name="coder_agent",
             model_client=model_client_coder,
@@ -208,6 +223,12 @@ async def get_task_team(
             bind_dir=paths.external_run_dir,
             model_context_token_limit=magentic_ui_config.model_context_token_limit,
             approval_guard=approval_guard,
+            network_name=magentic_ui_config.network_name,
+            # PVPython RAG settings
+            enable_pvpython_rag=enable_pvpython_rag,
+            pvserver_host=pvserver_host,
+            pvserver_port=pvserver_port,
+            debug_dir=paths.external_run_dir if enable_pvpython_rag else None,
         )
 
         file_surfer = FileSurfer(

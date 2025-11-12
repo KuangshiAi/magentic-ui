@@ -7,6 +7,15 @@ from .agents.mcp import McpAgentConfig
 from .agents.paraview import ParaViewAgentConfig
 from .types import Plan
 
+# For backward compatibility, create a simple config class for pvpython settings
+# The actual PVPython functionality is now integrated into CoderAgent
+class PVPythonCoderAgentConfig(BaseModel):
+    """Legacy configuration for PVPython Coder (now integrated into CoderAgent)."""
+    name: str = "pvpython_coder_agent"
+    pvserver_host: str = "paraview-server"
+    pvserver_port: int = 11111
+    # Other fields can be added as needed for backward compatibility
+
 
 class SentinelPlanConfig(BaseModel):
     """Configuration for sentinel plan functionality.
@@ -101,6 +110,7 @@ class MagenticUIConfig(BaseModel):
     model_client_configs: ModelClientConfigs = Field(default_factory=ModelClientConfigs)
     mcp_agent_configs: List[McpAgentConfig] = Field(default_factory=lambda: [])
     paraview_agent_config: Optional[ParaViewAgentConfig] = None
+    pvpython_coder_agent_config: Optional[PVPythonCoderAgentConfig] = None
     cooperative_planning: bool = True
     autonomous_execution: bool = False
     allowed_websites: Optional[List[str]] = None

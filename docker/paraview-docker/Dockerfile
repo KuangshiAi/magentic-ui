@@ -72,9 +72,8 @@ ENV QT_XKB_CONFIG_ROOT=/usr/share/X11/xkb
 # --- Bring in the startup script and auto_connect script ---
 # (copy as root, keep root:root, just ensure it's executable)
 COPY start.sh /usr/local/bin/start.sh
-COPY auto_connect.py /usr/local/bin/auto_connect.py
-RUN chmod +x /usr/local/bin/start.sh && \
-    chmod +x /usr/local/bin/auto_connect.py
+#COPY auto_connect.py /usr/local/bin/auto_connect.py
+RUN chmod +x /usr/local/bin/start.sh
 
 # --- Configure ParaView settings to disable welcome dialog and set white background ---
 # Create ParaView config directory and copy settings files
