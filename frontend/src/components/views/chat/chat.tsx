@@ -20,6 +20,7 @@ import { sessionAPI, settingsAPI } from "../api";
 import RunView from "./runview";
 import { messageUtils } from "./rendermessage";
 import { useSettingsStore, GeneralConfig } from "../../store";
+import DetailViewer from "./detail_viewer";
 import { RcFile } from "antd/es/upload";
 import {
   IPlan,
@@ -243,6 +244,60 @@ export default function ChatView({
       };
     }
   }, [session?.id]);
+
+  // Fetch ParaView service info when session is created and inject browser_address message
+  React.useEffect(() => {
+    const fetchParaViewService = async () => {
+      if (!session?.id || !user?.email || !currentRun?.id) return;
+
+      // Only fetch once per session
+      if (paraviewInitializedRef.current.has(session.id)) return;
+
+      try {
+        const paraviewInfo = await sessionAPI.getParaViewService(session.id, user.email);
+
+        if (paraviewInfo.available && paraviewInfo.novnc_url) {
+          console.log("ParaView service available:", paraviewInfo);
+
+          // Mark as initialized
+          paraviewInitializedRef.current.add(session.id);
+
+          // Create a browser_address message to trigger the ParaView UI
+          const browserAddressMessage: Message = {
+            config: {
+              source: "system",
+              content: `ParaView UI is available at: ${paraviewInfo.novnc_url}`,
+              metadata: {
+                type: "browser_address",
+                novnc_port: paraviewInfo.novnc_port.toString(),
+                address: paraviewInfo.novnc_url,
+              },
+            },
+            session_id: session.id,
+            run_id: currentRun.id,
+          };
+
+          // Update the current run with the browser address message
+          setCurrentRun(prev => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              messages: [...(prev.messages || []), browserAddressMessage],
+            };
+          });
+        }
+      } catch (error) {
+        console.error("Failed to fetch ParaView service info:", error);
+      }
+    };
+
+    // Small delay to ensure session and run are fully loaded
+    const timeoutId = setTimeout(() => {
+      fetchParaViewService();
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [session?.id, currentRun?.id, user?.email]);
 
   // ParaView auto-initialization disabled
   // If you want to re-enable automatic ParaView initialization when a dialogue starts,
@@ -1276,85 +1331,114 @@ export default function ChatView({
             }
           </div>
 
-          {/* No existing messages in run - centered content */}
-          {currentRun && noMessagesYet && teamConfig && (
-            <div
-              className={`text-center ${
-                showDetailViewer && !isDetailViewerMinimized
-                  ? "w-full"
-                  : "w-full max-w-full md:max-w-4xl lg:max-w-5xl xl:max-w-6xl"
-              } mx-auto px-4 sm:px-6 md:px-8`}
-            >
-              <div className="text-secondary text-lg mb-6">
-                Enter a message to get started
-              </div>
+          {/* No existing messages in run - show split view with ParaView if available */}
+          {currentRun && noMessagesYet && teamConfig && (() => {
+            // Extract novncPort from browser_address messages
+            const browserAddressMessages = currentRun.messages?.filter(
+              (msg: Message) => msg.config.metadata?.type === "browser_address"
+            ) || [];
+            const lastBrowserAddressMsg =
+              browserAddressMessages[browserAddressMessages.length - 1];
+            const novncPort = lastBrowserAddressMsg?.config.metadata?.novnc_port;
 
-              <div className="w-full">
-                <ChatInput
-                  ref={chatInputRef}
-                  onSubmit={(
-                    query: string,
-                    files: RcFile[],
-                    accepted = false,
-                    plan?: IPlan
-                  ) => {
-                    if (
-                      currentRun?.status === "awaiting_input" ||
-                      currentRun?.status === "paused"
-                    ) {
-                      handleInputResponse(query, files, accepted, plan);
-                    } else {
-                      runTask(query, files, plan, true);
-                    }
-                  }}
-                  error={error}
-                  onCancel={handleCancel}
-                  runStatus={currentRun?.status}
-                  inputRequest={currentRun?.input_request}
-                  isPlanMessage={isPlanMessage}
-                  onPause={handlePause}
-                  enable_upload={true}
-                  onExecutePlan={handleExecutePlan}
-                  onSubMenuChange={onSubMenuChange}
-                  mcpSelectorDisabled={
-                    currentRun?.status === "awaiting_input" ||
-                    currentRun?.status === "paused"}
-                  selectedMcpServers={selectedMcpServers}
-                  onSelectedMcpServersChange={setSelectedMcpServers}
-                />
+            return (
+              <div className="flex gap-2 w-full h-full">
+                {/* Left panel - Chat input and sample tasks */}
+                <div
+                  className={`items-start relative flex flex-col h-full ${
+                    showDetailViewer && novncPort !== undefined && !isDetailViewerMinimized
+                      ? "w-[37%]"
+                      : "w-full"
+                  } transition-all duration-300`}
+                >
+                  <div className="text-center w-full max-w-full md:max-w-4xl lg:max-w-5xl xl:max-w-6xl mx-auto px-4 sm:px-6 md:px-8">
+                    <div className="text-secondary text-lg mb-6">
+                      Enter a message to get started
+                    </div>
+
+                    <div className="w-full">
+                      <ChatInput
+                        ref={chatInputRef}
+                        onSubmit={(
+                          query: string,
+                          files: RcFile[],
+                          accepted = false,
+                          plan?: IPlan
+                        ) => {
+                          if (
+                            currentRun?.status === "awaiting_input" ||
+                            currentRun?.status === "paused"
+                          ) {
+                            handleInputResponse(query, files, accepted, plan);
+                          } else {
+                            runTask(query, files, plan, true);
+                          }
+                        }}
+                        error={error}
+                        onCancel={handleCancel}
+                        runStatus={currentRun?.status}
+                        inputRequest={currentRun?.input_request}
+                        isPlanMessage={isPlanMessage}
+                        onPause={handlePause}
+                        enable_upload={true}
+                        onExecutePlan={handleExecutePlan}
+                        onSubMenuChange={onSubMenuChange}
+                        mcpSelectorDisabled={
+                          currentRun?.status === "awaiting_input" ||
+                          currentRun?.status === "paused"}
+                        selectedMcpServers={selectedMcpServers}
+                        onSelectedMcpServersChange={setSelectedMcpServers}
+                      />
+                    </div>
+                    <SampleTasks
+                      onSelect={(task: string) => {
+                        if (chatInputRef.current) {
+                          // Set the input value and trigger submit
+                          chatInputRef.current.focus();
+                          // Set value in textarea
+                          const textarea = document.getElementById(
+                            "queryInput"
+                          ) as HTMLTextAreaElement;
+                          if (textarea) {
+                            textarea.value = task;
+                            // Trigger input event for React state
+                            const event = new Event("input", { bubbles: true });
+                            textarea.dispatchEvent(event);
+                          }
+                          // Submit the task
+                          setTimeout(() => {
+                            if (chatInputRef.current) {
+                              chatInputRef.current.focus();
+                              // Simulate pressing Enter
+                              const enterEvent = new KeyboardEvent("keydown", {
+                                key: "Enter",
+                                bubbles: true,
+                              });
+                              textarea?.dispatchEvent(enterEvent);
+                            }
+                          }, 100);
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Right panel - ParaView DetailViewer */}
+                {showDetailViewer && novncPort !== undefined && !isDetailViewerMinimized && (
+                  <div className="w-[63%] self-start sticky top-0 h-full">
+                    <DetailViewer
+                      novncPort={novncPort}
+                      isMinimized={isDetailViewerMinimized}
+                      onMinimize={() => setIsDetailViewerMinimized(!isDetailViewerMinimized)}
+                      onClose={() => setShowDetailViewer(false)}
+                      runStatus={currentRun.status}
+                      onPause={handlePause}
+                    />
+                  </div>
+                )}
               </div>
-              <SampleTasks
-                onSelect={(task: string) => {
-                  if (chatInputRef.current) {
-                    // Set the input value and trigger submit
-                    chatInputRef.current.focus();
-                    // Set value in textarea
-                    const textarea = document.getElementById(
-                      "queryInput"
-                    ) as HTMLTextAreaElement;
-                    if (textarea) {
-                      textarea.value = task;
-                      // Trigger input event for React state
-                      const event = new Event("input", { bubbles: true });
-                      textarea.dispatchEvent(event);
-                    }
-                    // Submit the task
-                    setTimeout(() => {
-                      if (chatInputRef.current) {
-                        chatInputRef.current.focus();
-                        // Simulate pressing Enter
-                        const enterEvent = new KeyboardEvent("keydown", {
-                          key: "Enter",
-                          bubbles: true,
-                        });
-                        textarea?.dispatchEvent(enterEvent);
-                      }
-                    }, 100);
-                  }
-                }}
-              />
-            </div>
-          )}
+            );
+          })()}
         </div>
       </div>
     </div>

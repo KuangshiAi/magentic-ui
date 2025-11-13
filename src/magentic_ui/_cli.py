@@ -5,10 +5,18 @@ import os
 import signal
 import sys
 import types
+import warnings
 from datetime import datetime
 from pathlib import Path
 from typing import Any, List, Literal, Optional, cast
 from typing_extensions import Annotated
+
+# Set environment variable to disable tokenizers parallelism before any imports
+# This prevents fork-related warnings when using Docker executor with sentence-transformers
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
+# Suppress Component subclass warnings - these are false positives for properly implemented components
+warnings.filterwarnings("ignore", message=".*Component class.*must subclass.*", category=UserWarning)
 
 import typer
 import yaml

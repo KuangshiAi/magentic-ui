@@ -5,7 +5,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from loguru import logger
 
 from ...datamodel import Message, Run, Session, RunStatus
-from ..deps import get_db, get_websocket_manager
+from ..deps import get_db, get_websocket_manager, get_config
+from ...paraview_service_manager import ParaViewServiceManager
+from ....tools.paraview_docker.paraview_docker_manager import ParaViewDockerManager
 
 router = APIRouter()
 
@@ -27,8 +29,8 @@ async def get_session(session_id: int, user_id: str, db=Depends(get_db)) -> Dict
 
 
 @router.post("/")
-async def create_session(session: Session, db=Depends(get_db)) -> Dict:
-    """Create a new session with an associated run"""
+async def create_session(session: Session, db=Depends(get_db), config=Depends(get_config)) -> Dict:
+    """Create a new session with an associated run and start ParaView service"""
     # Create session
     session_response = db.upsert(session)
     if not session_response.status:
@@ -49,7 +51,49 @@ async def create_session(session: Session, db=Depends(get_db)) -> Dict:
         if not run.status:
             # Clean up session if run creation failed
             raise HTTPException(status_code=400, detail=run.message)
-        return {"status": True, "data": session_response.data}
+
+        # Start ParaView service for this session if ParaView is configured
+        paraview_info = None
+        if config.paraview_agent_config is not None:
+            try:
+                logger.info(f"Starting ParaView service for session {session.id}")
+
+                # Create ParaViewDockerManager from config
+                pv_config = config.paraview_agent_config
+                docker_manager = ParaViewDockerManager(
+                    image=pv_config.paraview_image,
+                    novnc_port=pv_config.novnc_port,
+                    vnc_port=pv_config.vnc_port,
+                    pvserver_port=pv_config.pvserver_port,
+                    data_dir=pv_config.data_dir,
+                    auto_gui_connect=pv_config.auto_gui_connect,
+                    inside_docker=pv_config.inside_docker,
+                    network_name=pv_config.network_name,
+                    width=pv_config.width,
+                    height=pv_config.height,
+                    gui_connect_wait_time=pv_config.gui_connect_wait_time,
+                )
+
+                # Get or create ParaView service for this session
+                paraview_service = await ParaViewServiceManager.get_or_create(
+                    session_id=session.id,
+                    docker_manager=docker_manager,
+                )
+
+                # Start the ParaView service (pvserver + GUI)
+                paraview_info = await paraview_service.start()
+                logger.info(f"ParaView service started for session {session.id}: {paraview_info}")
+
+            except Exception as e:
+                logger.error(f"Failed to start ParaView service for session {session.id}: {e}")
+                # Don't fail session creation if ParaView fails - it can be started later
+                paraview_info = {"status": "error", "message": str(e)}
+
+        response_data = session_response.data
+        if paraview_info:
+            response_data["paraview_service"] = paraview_info
+
+        return {"status": True, "data": response_data}
     except Exception as e:
         # Clean up session if run creation failed
         raise HTTPException(status_code=500, detail=str(e)) from e
@@ -80,10 +124,53 @@ async def update_session(
 @router.delete("/{session_id}")
 async def delete_session(session_id: int, user_id: str, db=Depends(get_db)) -> Dict:
     """Delete a session and all its associated runs and messages"""
+    # Stop and clean up ParaView service if it exists
+    try:
+        paraview_service = await ParaViewServiceManager.get(session_id)
+        if paraview_service:
+            logger.info(f"Stopping ParaView service for session {session_id}")
+            await paraview_service.stop()
+            await ParaViewServiceManager.remove(session_id)
+            logger.info(f"ParaView service stopped and removed for session {session_id}")
+    except Exception as e:
+        logger.error(f"Error stopping ParaView service for session {session_id}: {e}")
+        # Continue with session deletion even if ParaView cleanup fails
+
     # Delete the session
     db.delete(filters={"id": session_id, "user_id": user_id}, model_class=Session)
 
     return {"status": True, "message": "Session deleted successfully"}
+
+
+@router.get("/{session_id}/paraview")
+async def get_paraview_service(session_id: int, user_id: str, db=Depends(get_db)) -> Dict:
+    """Get ParaView service information for a session"""
+    # First verify the session belongs to user
+    existing = db.get(Session, filters={"id": session_id, "user_id": user_id})
+    if not existing.status or not existing.data:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    # Get ParaView service info
+    paraview_service = await ParaViewServiceManager.get(session_id)
+    if not paraview_service:
+        return {
+            "status": True,
+            "data": {
+                "available": False,
+                "message": "No ParaView service for this session",
+            },
+        }
+
+    return {
+        "status": True,
+        "data": {
+            "available": True,
+            "novnc_url": paraview_service.get_novnc_url(),
+            "is_running": paraview_service.is_running(),
+            "novnc_port": paraview_service.novnc_port,
+            "pvserver_port": paraview_service.pvserver_port,
+        },
+    }
 
 
 @router.get("/{session_id}/runs")

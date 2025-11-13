@@ -127,6 +127,20 @@ export class SessionAPI {
       throw new Error(data.message || "Failed to fetch messages");
     return data.data;
   }
+
+  // Get ParaView service info for a session
+  async getParaViewService(sessionId: number, userId: string): Promise<any> {
+    const response = await fetch(
+      `${this.getBaseUrl()}/sessions/${sessionId}/paraview?user_id=${userId}`,
+      {
+        headers: this.getHeaders(),
+      }
+    );
+    const data = await response.json();
+    if (!data.status)
+      throw new Error(data.message || "Failed to fetch ParaView service info");
+    return data.data;
+  }
 }
 
 export class TeamAPI {

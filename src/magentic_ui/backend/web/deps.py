@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 # Global manager instances
 _db_manager: Optional[DatabaseManager] = None
 _websocket_manager: Optional[WebSocketManager] = None
+_config: Optional[Any] = None  # Global config instance
 
 # Context manager for database sessions
 
@@ -59,6 +60,16 @@ async def get_websocket_manager() -> WebSocketManager:
     return _websocket_manager
 
 
+async def get_config() -> Any:
+    """Dependency provider for application config"""
+    if not _config:
+        # Return empty config if not initialized (for backward compatibility)
+        # In practice, this should be initialized during startup
+        from ...magentic_ui_config import MagenticUIConfig
+        return MagenticUIConfig()
+    return _config
+
+
 # Manager initialization and cleanup
 
 
@@ -73,11 +84,15 @@ async def init_managers(
     run_without_docker: bool,
 ) -> None:
     """Initialize all manager instances"""
-    global _db_manager, _websocket_manager, _team_manager
+    global _db_manager, _websocket_manager, _team_manager, _config
 
     logger.info("Initializing managers...")
 
     try:
+        # Store config globally for dependency injection
+        from ...magentic_ui_config import MagenticUIConfig
+        _config = MagenticUIConfig(**config) if config else MagenticUIConfig()
+
         # Initialize database manager
         _db_manager = DatabaseManager(engine_uri=database_uri, base_dir=app_root)
         _db_manager.initialize_database(auto_upgrade=settings.UPGRADE_DATABASE)
@@ -101,7 +116,7 @@ async def init_managers(
 
 async def cleanup_managers() -> None:
     """Cleanup and shutdown all manager instances"""
-    global _db_manager, _websocket_manager, _team_manager
+    global _db_manager, _websocket_manager, _team_manager, _config
 
     logger.info("Cleaning up managers...")
 
@@ -125,6 +140,9 @@ async def cleanup_managers() -> None:
             logger.error(f"Error cleaning up database manager: {str(e)}")
         finally:
             _db_manager = None
+
+    # Clear config
+    _config = None
 
     logger.info("All managers cleaned up")
 

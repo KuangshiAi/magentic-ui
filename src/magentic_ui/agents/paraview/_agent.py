@@ -71,13 +71,15 @@ class ParaViewAgent(McpAgent):
         mcp_server_params: List[NamedMcpServerParams] | None = None,
         paraview_docker_manager: ParaViewDockerManager | None = None,
         model_context_token_limit: int | None = None,
+        session_id: int | None = None,  # NEW: Session ID for ParaView service lookup
         **kwargs: Any,
     ):
-        self._paraview_docker_manager = paraview_docker_manager
+        self._paraview_docker_manager = paraview_docker_manager  # Kept for backward compatibility but not used
         self._did_lazy_init = False
         self._paraview_just_initialized = False
         self.novnc_port: int | None = None
         self.pvserver_port: int | None = None
+        self._session_id = session_id  # NEW: Store session ID
 
         super().__init__(
             name,
@@ -96,14 +98,18 @@ class ParaViewAgent(McpAgent):
 
     async def lazy_init(self) -> None:
         """
-        Initialize ParaView Docker container and connect MCP.
+        Connect MCP to existing ParaView server.
 
-        This method:
-        - Starts the ParaView Docker container
-        - Waits for pvserver to be ready
-        - Waits for GUI to auto-connect
-        - Sets up MCP connection to pvserver
-        - Captures port information for noVNC access
+        NEW BEHAVIOR (Session-level ParaView service):
+        - The ParaView server is already running (started when session was created)
+        - This method only retrieves connection info from the ParaView service
+        - MCP connection happens automatically through the parent McpAgent class
+
+        OLD BEHAVIOR (kept for backward compatibility):
+        - If docker_manager is provided, use old behavior
+        - Start ParaView Docker container
+        - Wait for pvserver to be ready
+        - Capture port information
         """
         import logging
         logger = logging.getLogger(__name__)
@@ -114,21 +120,53 @@ class ParaViewAgent(McpAgent):
             logger.info("ParaView already initialized, skipping")
             return
 
-        if self._paraview_docker_manager is not None:
+        # NEW: Check if we have a session ID (new flow)
+        if self._session_id is not None:
+            logger.info(f"Using session-level ParaView service for session {self._session_id}")
+
+            # Import here to avoid circular dependency
+            from ...backend.paraview_service_manager import ParaViewServiceManager
+
+            # Get the ParaView service for this session
+            paraview_service = await ParaViewServiceManager.get(self._session_id)
+
+            if paraview_service and paraview_service.is_running():
+                # Capture port information from the running service
+                self.novnc_port = paraview_service.novnc_port
+                self.pvserver_port = paraview_service.pvserver_port
+
+                logger.info(
+                    f"Connected to session ParaView service. "
+                    f"noVNC port: {self.novnc_port}, pvserver port: {self.pvserver_port}"
+                )
+
+                # Mark that we just initialized so we can send the browser address
+                self._paraview_just_initialized = True
+            else:
+                logger.warning(
+                    f"ParaView service for session {self._session_id} is not running. "
+                    "ParaView tools will not be available."
+                )
+
+        # OLD: Backward compatibility - use Docker manager if provided
+        elif self._paraview_docker_manager is not None:
             # Start the ParaView Docker container (includes GUI auto-connect wait)
-            logger.info("Starting ParaView Docker container...")
+            logger.info("Starting ParaView Docker container (legacy mode)...")
             await self._paraview_docker_manager.start()
 
             # Capture port information
             self.novnc_port = self._paraview_docker_manager.novnc_port
             self.pvserver_port = self._paraview_docker_manager.pvserver_port
 
-            logger.info(f"ParaView Docker started. noVNC port: {self.novnc_port}, pvserver port: {self.pvserver_port}")
+            logger.info(
+                f"ParaView Docker started. "
+                f"noVNC port: {self.novnc_port}, pvserver port: {self.pvserver_port}"
+            )
 
             # Mark that we just initialized so we can send the browser address
             self._paraview_just_initialized = True
         else:
-            logger.warning("ParaView Docker manager is None")
+            logger.warning("No ParaView service or Docker manager available")
 
         self._did_lazy_init = True
 
@@ -340,34 +378,40 @@ class ParaViewAgent(McpAgent):
             await self._paraview_docker_manager.stop()
 
     @classmethod
-    def _from_config(cls, config: Any):
+    def _from_config(cls, config: Any, session_id: int | None = None):
         """
         Create a ParaViewAgent instance from configuration.
 
         Args:
             config: ParaViewAgentConfig or compatible configuration object
+            session_id: Optional session ID for session-level ParaView service lookup
 
         Returns:
             ParaViewAgent: Configured agent instance
         """
         if isinstance(config, ParaViewAgentConfig):
-            # Create the ParaView Docker manager
+            # Create the ParaView Docker manager (kept for backward compatibility)
+            # NEW: When session_id is provided, this won't be used - the session-level
+            # ParaView service will be used instead
             from pathlib import Path
             from autogen_core.models import ChatCompletionClient
 
-            paraview_docker_manager = ParaViewDockerManager(
-                image=config.paraview_image,
-                novnc_port=config.novnc_port,
-                vnc_port=config.vnc_port,
-                pvserver_port=config.pvserver_port,
-                data_dir=Path(config.data_dir) if config.data_dir else None,
-                inside_docker=config.inside_docker,
-                network_name=config.network_name,
-                auto_gui_connect=config.auto_gui_connect,
-                width=config.width,
-                height=config.height,
-                gui_connect_wait_time=config.gui_connect_wait_time,
-            )
+            paraview_docker_manager = None
+            if session_id is None:
+                # Legacy mode: create Docker manager
+                paraview_docker_manager = ParaViewDockerManager(
+                    image=config.paraview_image,
+                    novnc_port=config.novnc_port,
+                    vnc_port=config.vnc_port,
+                    pvserver_port=config.pvserver_port,
+                    data_dir=Path(config.data_dir) if config.data_dir else None,
+                    inside_docker=config.inside_docker,
+                    network_name=config.network_name,
+                    auto_gui_connect=config.auto_gui_connect,
+                    width=config.width,
+                    height=config.height,
+                    gui_connect_wait_time=config.gui_connect_wait_time,
+                )
 
             # Load the model client
             model_client = ChatCompletionClient.load_component(config.model_client)
@@ -384,6 +428,7 @@ class ParaViewAgent(McpAgent):
                 model_context_token_limit=config.model_context_token_limit,
                 description=config.description,
                 system_message=config.system_message,
+                session_id=session_id,  # NEW: Pass session_id
             )
 
         # Fallback to parent implementation

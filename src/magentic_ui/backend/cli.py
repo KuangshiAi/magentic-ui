@@ -7,6 +7,10 @@ from typing import Optional
 from pathlib import Path
 import logging
 
+# Set environment variable to disable tokenizers parallelism before any imports
+# This prevents fork-related warnings when using Docker executor with sentence-transformers
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
 from ..version import VERSION
 from .._docker import (
     check_docker_running,
@@ -32,6 +36,9 @@ warnings.filterwarnings(
 # Ignore warnings about ffmpeg or avconv not being found
 # Audio is not used in the UI, so we can ignore this warning
 warnings.filterwarnings("ignore", message="Couldn't find ffmpeg or avconv*")
+
+# Suppress Component subclass warnings - these are false positives for properly implemented components
+warnings.filterwarnings("ignore", message=".*Component class.*must subclass.*", category=UserWarning)
 
 
 def get_env_file_path():

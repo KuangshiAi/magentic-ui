@@ -180,6 +180,7 @@ class TeamManager:
         settings_config: dict[str, Any] = {},
         *,
         paths: RunPaths,
+        session_id: Optional[int] = None,  # NEW: Session ID for ParaView service lookup
     ) -> tuple[Team, int, int]:
         """Create team instance from config"""
         if not self.run_without_docker:
@@ -352,6 +353,7 @@ class TeamManager:
                     magentic_ui_config=magentic_ui_config,
                     input_func=input_func,
                     paths=paths,
+                    session_id=session_id,  # NEW: Pass session_id for ParaView service lookup
                 ),
             )
             if hasattr(self.team, "_participants"):
@@ -435,6 +437,7 @@ class TeamManager:
                     env_vars,
                     settings_config or {},
                     paths=paths,
+                    session_id=run.session_id if run else None,  # NEW: Pass session_id from run
                 )
 
                 # Initialize known files by name for tracking

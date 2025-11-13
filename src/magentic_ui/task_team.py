@@ -31,6 +31,7 @@ async def get_task_team(
     input_func: Optional[InputFuncType] = None,
     *,
     paths: RunPaths,
+    session_id: Optional[int] = None,  # NEW: Session ID for ParaView service lookup
 ) -> GroupChat | RoundRobinGroupChat:
     """
     Creates and returns a GroupChat team with specified configuration.
@@ -256,7 +257,7 @@ async def get_task_team(
         paraview_config.inside_docker = magentic_ui_config.inside_docker
         paraview_config.network_name = magentic_ui_config.network_name
 
-        paraview_agent = ParaViewAgent._from_config(paraview_config)
+        paraview_agent = ParaViewAgent._from_config(paraview_config, session_id=session_id)
 
     if (
         orchestrator_config.memory_controller_key is not None
