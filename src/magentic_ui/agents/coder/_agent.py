@@ -316,8 +316,13 @@ ParaView/PVPython Capabilities:
   * Connect to pvserver using: Connect('paraview-server', 11111)
   * Use proper error handling and validation
   * Include comments explaining key steps
-  * After creating visualizations, remember to Update() and Render()
-  * Save screenshots using SaveScreenshot() when requested
+  * To make a newly created source/filter visible:
+    - Get or create a view: view = GetActiveView() or CreateView('RenderView')
+    - Show the object in that view: display = Show(source, view)
+    - Ensure visibility is on: display.Visibility = 1
+    - Set display.Representation to the correct modes to set representation
+  * Do NOT call Render(), as it may cause X server errors in headless environments
+
 
 VERY IMPORTANT: If you intend to write code to be executed, do not end your response without a code block. If you want to write code you must provide a code block in the current generation."""
 
