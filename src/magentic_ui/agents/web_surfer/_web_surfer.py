@@ -563,6 +563,7 @@ class WebSurfer(BaseChatAgent, Component[WebSurferConfig]):
                 metadata={
                     "internal": "no",
                     "type": "browser_address",
+                    "service_type": "browser",
                     "novnc_port": str(self._browser.novnc_port),
                     "playwright_port": str(self._browser.playwright_port),
                 },

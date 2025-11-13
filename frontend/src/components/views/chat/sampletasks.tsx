@@ -5,12 +5,8 @@ interface SampleTasksProps {
 }
 
 const SAMPLE_TASKS = [
-  "When does the post office near me close today?",
-  "Find the latest publications from the the Microsoft Research AI Frontiers Lab on Human-Agent interaction",
-  "Which commit of Microsoft/markitdown repo introduced MCP support?",
-  "Tell me when Bitcoin price drops 5% below its current value",
-  "Order me a custom pizza from Tangle Town Pub with sausage, pineapple, and black olives",
-  "Search arXiv for the latest papers on computer use agents",
+  "Create a sphere in ParaView using pvpython code",
+  "Search for a bonsai image online, then load bonsai_256x256x256_uint8.raw and replicate it with volume visualization",
 ];
 
 const SampleTasks: React.FC<SampleTasksProps> = ({ onSelect }) => {

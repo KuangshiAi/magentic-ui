@@ -33,6 +33,8 @@ interface DetailViewerProps {
   currentIndex: number;
   onIndexChange: (index: number) => void;
   novncPort?: string;
+  paraviewPort?: string;
+  browserPort?: string;
   onPause?: () => void;
   runStatus?: string;
   activeTab?: TabType;
@@ -46,7 +48,7 @@ interface DetailViewerProps {
   ) => void;
 }
 
-type TabType = "screenshots" | "live";
+type TabType = "screenshots" | "paraview" | "browser";
 
 const DetailViewer: React.FC<DetailViewerProps> = ({
   images,
@@ -55,6 +57,8 @@ const DetailViewer: React.FC<DetailViewerProps> = ({
   currentIndex,
   onIndexChange,
   novncPort,
+  paraviewPort,
+  browserPort,
   onPause,
   runStatus,
   activeTab: controlledActiveTab,
@@ -62,12 +66,24 @@ const DetailViewer: React.FC<DetailViewerProps> = ({
   detailViewerContainerId,
   onInputResponse,
 }) => {
-  const [internalActiveTab, setInternalActiveTab] = useState<TabType>("live");
+  const [internalActiveTab, setInternalActiveTab] = useState<TabType>("paraview");
   const activeTab = controlledActiveTab ?? internalActiveTab;
   const [viewMode, setViewMode] = useState<"iframe" | "novnc">("iframe");
   const vncRef = useRef();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Update active tab when ports become available
+  React.useEffect(() => {
+    // Only auto-switch if user hasn't manually changed tabs
+    if (!controlledActiveTab) {
+      if (paraviewPort && internalActiveTab !== "paraview") {
+        setInternalActiveTab("paraview");
+      } else if (browserPort && !paraviewPort && internalActiveTab !== "browser") {
+        setInternalActiveTab("browser");
+      }
+    }
+  }, [paraviewPort, browserPort, controlledActiveTab, internalActiveTab]);
 
   // Add state for fullscreen control mode
   const [isControlMode, setIsControlMode] = useState(false);
@@ -107,15 +123,7 @@ const DetailViewer: React.FC<DetailViewerProps> = ({
     setIsModalOpen(true);
   };
 
-  const renderLiveTab = React.useMemo(() => {
-    if (!novncPort) {
-      return (
-        <div className="flex-1 w-full h-full min-h-0 flex items-center justify-center">
-          <p>Waiting for browser session to start...</p>
-        </div>
-      );
-    }
-
+  const renderVncView = (port: string, serviceName: string) => {
     // Use server_url from config if set, otherwise default to localhost
     const serverHost = config.server_url || "localhost";
 
@@ -123,7 +131,7 @@ const DetailViewer: React.FC<DetailViewerProps> = ({
       <div className="flex-1 w-full h-full flex flex-col">
         {viewMode === "iframe" ? (
           <BrowserIframe
-            novncPort={novncPort}
+            novncPort={port}
             style={{
               height: "100%",
               flex: "1 1 auto",
@@ -140,16 +148,16 @@ const DetailViewer: React.FC<DetailViewerProps> = ({
             isControlMode={isControlMode}
             serverUrl={serverHost}
           />
-        ) : novncPort ? (
+        ) : (
           <div
             className="relative w-full h-full flex flex-col"
-            onMouseEnter={() => {}} // Moved overlay to BrowserIframe
-            onMouseLeave={() => {}} // Moved overlay to BrowserIframe
+            onMouseEnter={() => {}}
+            onMouseLeave={() => {}}
           >
             <Suspense fallback={<div>Loading VNC viewer...</div>}>
               <VncScreen
-                key={`vnc-${novncPort}`}
-                url={`ws://${serverHost}:${novncPort}`}
+                key={`vnc-${port}`}
+                url={`ws://${serverHost}:${port}`}
                 scaleViewport
                 background="#000000"
                 style={{
@@ -164,17 +172,37 @@ const DetailViewer: React.FC<DetailViewerProps> = ({
               />
             </Suspense>
           </div>
-        ) : (
-          <div className="flex items-center justify-center w-full h-full text-secondary">
-            <div className="text-center">
-              <div className="text-lg mb-2">Initializing ParaView...</div>
-              <div className="text-sm">Please wait while the Docker container starts</div>
-            </div>
-          </div>
         )}
       </div>
     );
-  }, [novncPort, viewMode, runStatus, onPause, isControlMode, config.server_url]);
+  };
+
+  const renderParaViewTab = React.useMemo(() => {
+    if (!paraviewPort) {
+      return (
+        <div className="flex items-center justify-center w-full h-full text-secondary">
+          <div className="text-center">
+            <div className="text-lg mb-2">Initializing ParaView...</div>
+            <div className="text-sm">Please wait while the Docker container starts</div>
+          </div>
+        </div>
+      );
+    }
+
+    return renderVncView(paraviewPort, "ParaView");
+  }, [paraviewPort, viewMode, runStatus, onPause, isControlMode, config.server_url]);
+
+  const renderBrowserTab = React.useMemo(() => {
+    if (!browserPort) {
+      return (
+        <div className="flex-1 w-full h-full min-h-0 flex items-center justify-center">
+          <p>Waiting for browser session to start...</p>
+        </div>
+      );
+    }
+
+    return renderVncView(browserPort, "Browser");
+  }, [browserPort, viewMode, runStatus, onPause, isControlMode, config.server_url]);
 
   return (
     <>
@@ -185,9 +213,35 @@ const DetailViewer: React.FC<DetailViewerProps> = ({
         {/* Tabs and Controls */}
         <div className="flex justify-between items-center mb-4 border-b flex-shrink-0">
           <div className="flex">
-            <div className="px-6 py-2 font-medium text-primary">
-              Live View
-            </div>
+            {paraviewPort && (
+              <button
+                className={`px-6 py-2 font-medium ${
+                  activeTab === "paraview"
+                    ? "text-primary border-b-2 border-primary"
+                    : "text-secondary hover:text-primary"
+                }`}
+                onClick={() => handleTabChange("paraview")}
+              >
+                ParaView
+              </button>
+            )}
+            {browserPort && (
+              <button
+                className={`px-6 py-2 font-medium ${
+                  activeTab === "browser"
+                    ? "text-primary border-b-2 border-primary"
+                    : "text-secondary hover:text-primary"
+                }`}
+                onClick={() => handleTabChange("browser")}
+              >
+                Browser
+              </button>
+            )}
+            {!paraviewPort && !browserPort && (
+              <div className="px-6 py-2 font-medium text-primary">
+                Live View
+              </div>
+            )}
           </div>
 
           <div className="flex gap-2">
@@ -216,7 +270,8 @@ const DetailViewer: React.FC<DetailViewerProps> = ({
         </div>
 
         <div className="flex-1 flex flex-col min-h-0">
-          {renderLiveTab}
+          {activeTab === "paraview" && renderParaViewTab}
+          {activeTab === "browser" && renderBrowserTab}
         </div>
       </div>
 
@@ -225,8 +280,8 @@ const DetailViewer: React.FC<DetailViewerProps> = ({
         onClose={() => {
           setIsModalOpen(false);
         }}
-        novncPort={novncPort}
-        title="Browser View"
+        novncPort={activeTab === "paraview" ? paraviewPort : browserPort}
+        title={activeTab === "paraview" ? "ParaView" : "Browser View"}
         onPause={onPause}
         runStatus={runStatus}
         onControlHandover={handleModalControlHandover}

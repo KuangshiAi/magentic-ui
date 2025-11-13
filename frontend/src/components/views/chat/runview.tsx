@@ -68,10 +68,12 @@ const RunView: React.FC<RunViewProps> = ({
 }) => {
   const threadContainerRef = useRef<HTMLDivElement | null>(null);
   const [novncPort, setNovncPort] = useState<string | undefined>();
+  const [paraviewPort, setParaviewPort] = useState<string | undefined>();
+  const [browserPort, setBrowserPort] = useState<string | undefined>();
   const [detailViewerExpanded, setDetailViewerExpanded] = useState(false);
   const [detailViewerTab, setDetailViewerTab] = useState<
-    "screenshots" | "live"
-  >("live");
+    "screenshots" | "paraview" | "browser"
+  >("paraview");
   const [hiddenMessageIndices, setHiddenMessageIndices] = useState<Set<number>>(
     new Set()
   );
@@ -126,22 +128,44 @@ const RunView: React.FC<RunViewProps> = ({
     }
   }, [run.messages, run.status]);
 
-  // Effect to handle browser_address message
+  // Effect to handle browser_address messages for both ParaView and Browser
   useEffect(() => {
     const browserAddressMessages = run.messages.filter(
       (msg: Message) => msg.config.metadata?.type === "browser_address"
     );
-    const lastBrowserAddressMsg =
-      browserAddressMessages[browserAddressMessages.length - 1];
-    // only update if novncPort is it is different from the current novncPort
-    if (
-      lastBrowserAddressMsg &&
-      lastBrowserAddressMsg.config.metadata?.novnc_port !== novncPort
-    ) {
-      setNovncPort(lastBrowserAddressMsg.config.metadata?.novnc_port);
-      // Show DetailViewer when novncPort becomes available
+
+    // Separate ParaView and Browser messages
+    const paraviewMessages = browserAddressMessages.filter(
+      (msg: Message) => msg.config.metadata?.service_type === "paraview"
+    );
+    const browserMessages = browserAddressMessages.filter(
+      (msg: Message) => msg.config.metadata?.service_type === "browser"
+    );
+
+    // Get the latest ParaView port
+    const lastParaviewMsg = paraviewMessages[paraviewMessages.length - 1];
+    if (lastParaviewMsg && lastParaviewMsg.config.metadata?.novnc_port !== paraviewPort) {
+      setParaviewPort(lastParaviewMsg.config.metadata?.novnc_port);
       setShowDetailViewer(true);
       setIsDetailViewerMinimized(false);
+    }
+
+    // Get the latest Browser port
+    const lastBrowserMsg = browserMessages[browserMessages.length - 1];
+    if (lastBrowserMsg && lastBrowserMsg.config.metadata?.novnc_port !== browserPort) {
+      setBrowserPort(lastBrowserMsg.config.metadata?.novnc_port);
+      setShowDetailViewer(true);
+      setIsDetailViewerMinimized(false);
+      // Switch to browser tab when browser becomes available
+      setDetailViewerTab("browser");
+    }
+
+    // Keep novncPort for backward compatibility (defaults to ParaView or Browser)
+    if (lastParaviewMsg || lastBrowserMsg) {
+      const latestPort = (lastBrowserMsg || lastParaviewMsg)?.config.metadata?.novnc_port;
+      if (latestPort !== novncPort) {
+        setNovncPort(latestPort);
+      }
     }
   }, [run.messages]);
 
@@ -598,7 +622,7 @@ const RunView: React.FC<RunViewProps> = ({
       {/* Messages section */}
       <div
         className={`items-start relative flex flex-col h-full ${showDetailViewer &&
-            novncPort !== undefined &&
+            (paraviewPort !== undefined || browserPort !== undefined) &&
             !isDetailViewerMinimized
             ? detailViewerExpanded
               ? "w-0"
@@ -727,18 +751,18 @@ const RunView: React.FC<RunViewProps> = ({
       </div>
 
       {/* Detail Viewer section */}
-      {isDetailViewerMinimized && novncPort !== undefined && (
+      {isDetailViewerMinimized && (paraviewPort !== undefined || browserPort !== undefined) && (
         <button
           onClick={() => setIsDetailViewerMinimized(false)}
           className="self-start sticky top-0 h-full inline-flex text-magenta-800 hover:text-magenta-900 cursor-pointer"
-          title="Show browser"
+          title="Show viewer"
         >
           <Globe2 size={20} />
         </button>
       )}
 
       {showDetailViewer &&
-        novncPort !== undefined &&
+        (paraviewPort !== undefined || browserPort !== undefined) &&
         !isDetailViewerMinimized && (
           <div
             className={`${detailViewerExpanded ? "w-full" : "w-[63%]"
@@ -761,6 +785,8 @@ const RunView: React.FC<RunViewProps> = ({
                   }))
                 }
                 novncPort={novncPort}
+                paraviewPort={paraviewPort}
+                browserPort={browserPort}
                 onPause={onPause}
                 runStatus={run.status}
                 activeTab={detailViewerTab}

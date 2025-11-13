@@ -258,6 +258,7 @@ class ParaViewAgent(McpAgent):
                 metadata={
                     "internal": "no",
                     "type": "browser_address",
+                    "service_type": "paraview",
                     "novnc_port": str(self.novnc_port),
                     "pvserver_port": str(self.pvserver_port) if self.pvserver_port else "",
                 },

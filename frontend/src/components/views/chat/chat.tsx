@@ -269,6 +269,7 @@ export default function ChatView({
               content: `ParaView UI is available at: ${paraviewInfo.novnc_url}`,
               metadata: {
                 type: "browser_address",
+                service_type: "paraview",
                 novnc_port: paraviewInfo.novnc_port.toString(),
                 address: paraviewInfo.novnc_url,
               },
@@ -1333,9 +1334,10 @@ export default function ChatView({
 
           {/* No existing messages in run - show split view with ParaView if available */}
           {currentRun && noMessagesYet && teamConfig && (() => {
-            // Extract novncPort from browser_address messages
+            // Extract novncPort from browser_address messages for ParaView
             const browserAddressMessages = currentRun.messages?.filter(
-              (msg: Message) => msg.config.metadata?.type === "browser_address"
+              (msg: Message) => msg.config.metadata?.type === "browser_address" &&
+                msg.config.metadata?.service_type === "paraview"
             ) || [];
             const lastBrowserAddressMsg =
               browserAddressMessages[browserAddressMessages.length - 1];
@@ -1427,12 +1429,18 @@ export default function ChatView({
                 {showDetailViewer && novncPort !== undefined && !isDetailViewerMinimized && (
                   <div className="w-[63%] self-start sticky top-0 h-full">
                     <DetailViewer
-                      novncPort={novncPort}
-                      isMinimized={isDetailViewerMinimized}
+                      images={[]}
+                      imageTitles={[]}
                       onMinimize={() => setIsDetailViewerMinimized(!isDetailViewerMinimized)}
-                      onClose={() => setShowDetailViewer(false)}
-                      runStatus={currentRun.status}
+                      onToggleExpand={() => {}}
+                      isExpanded={false}
+                      currentIndex={0}
+                      onIndexChange={() => {}}
+                      novncPort={novncPort}
+                      paraviewPort={novncPort}
+                      browserPort={undefined}
                       onPause={handlePause}
+                      runStatus={currentRun.status}
                     />
                   </div>
                 )}
