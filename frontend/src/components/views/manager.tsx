@@ -53,15 +53,42 @@ export const SessionManager: React.FC = () => {
       setIsLoading(true);
       const data = await sessionAPI.listSessions(user.email);
 
-      // Always use only one session
-      if (data.length === 0) {
-        // No sessions exist, create one
-        await createDefaultSession();
-      } else {
-        // Use the first (and only) session
-        setSessions([data[0]]);
-        setSession(data[0]);
+      // Always create a fresh session on frontend launch
+      // Delete any existing sessions first
+      if (data.length > 0) {
+        for (const s of data) {
+          if (s.id) {
+            try {
+              await sessionAPI.deleteSession(s.id, user.email);
+            } catch (error) {
+              console.error(`Error deleting session ${s.id}:`, error);
+            }
+          }
+        }
       }
+
+      // Create a fresh session (which will start ParaView service)
+      const defaultName = `Default Session - ${new Date().toLocaleDateString(
+        undefined,
+        {
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        }
+      )}`;
+
+      const created = await sessionAPI.createSession(
+        {
+          name: defaultName,
+        },
+        user.email
+      );
+
+      setSessions([created]);
+      setSession(created);
+      window.history.pushState({}, "", `?sessionId=${created.id}`);
     } catch (error) {
       console.error("Error fetching sessions:", error);
       messageApi.error("Error loading sessions");
