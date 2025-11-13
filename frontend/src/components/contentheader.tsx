@@ -4,7 +4,6 @@ import { Tooltip } from "antd";
 import { appContext } from "../hooks/provider";
 import { useConfigStore } from "../hooks/store";
 import { Settings } from "lucide-react";
-import SignInModal from "./signin";
 import SettingsModal from "./settings/SettingsModal";
 import logo from "../assets/new_logo.png";
 import { Button } from "./common/Button";
@@ -26,7 +25,6 @@ const ContentHeader = ({
 }: ContentHeaderProps) => {
   const { user } = React.useContext(appContext);
   useConfigStore();
-  const [isEmailModalOpen, setIsEmailModalOpen] = React.useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
 
   return (
@@ -70,30 +68,8 @@ const ContentHeader = ({
           </div>
         </div>
 
-        {/* User Profile and Settings */}
-        <div className="flex items-center space-x-4">
-          {/* User Profile */}
-          {user && (
-            <Tooltip title="View or update your profile">
-              <div
-                className="flex items-center space-x-2 cursor-pointer"
-                onClick={() => setIsEmailModalOpen(true)}
-              >
-                {user.avatar_url ? (
-                  <img
-                    className="h-8 w-8 rounded-full"
-                    src={user.avatar_url}
-                    alt={user.name}
-                  />
-                ) : (
-                  <div className="bg-blue-400 h-8 w-8 rounded-full flex items-center justify-center text-gray-800 font-semibold hover:text-message">
-                    {user.name?.[0]}
-                  </div>
-                )}
-              </div>
-            </Tooltip>
-          )}
-
+        {/* Settings */}
+        <div className="flex items-center">
           {/* Settings Button */}
           <div className="text-primary">
             <Tooltip title="Settings">
@@ -110,10 +86,6 @@ const ContentHeader = ({
         </div>
       </div>
 
-      <SignInModal
-        isVisible={isEmailModalOpen}
-        onClose={() => setIsEmailModalOpen(false)}
-      />
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}

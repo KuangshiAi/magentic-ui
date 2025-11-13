@@ -62,9 +62,7 @@ const MagenticUILayout = ({
       <div
         className={classNames(
           "flex-1 flex flex-col min-h-screen",
-          "transition-all duration-300 ease-in-out",
-          "md:pl-1",
-          isExpanded ? "md:pl-1" : "md:pl-1"
+          "transition-all duration-300 ease-in-out"
         )}
       >
         <ConfigProvider
@@ -79,7 +77,7 @@ const MagenticUILayout = ({
                 : theme.defaultAlgorithm,
           }}
         >
-          <main className="flex-1 p-1 text-primary" style={{ height: "100%" }}>
+          <main className="flex-1 text-primary" style={{ height: "100%" }}>
             <SessionManager />
           </main>
         </ConfigProvider>

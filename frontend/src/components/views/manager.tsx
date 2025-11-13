@@ -471,14 +471,14 @@ export const SessionManager: React.FC = () => {
       <div className="flex flex-1 relative">
         {/* Sidebar removed - single session mode */}
 
-        <div className="flex-1 -mr-4 w-[200px] ml-0">
+        <div className="flex-1 w-full">
           {
           activeSubMenuItem === "mcp_servers" ? (
-            <div className="h-full overflow-hidden pl-4">
+            <div className="h-full overflow-hidden">
               <McpServersList />
             </div>
           ) : activeSubMenuItem === "saved_plan" ? (
-            <div className="h-full overflow-hidden pl-4">
+            <div className="h-full overflow-hidden">
               <PlanList
                 onTabChange={setActiveSubMenuItem}
                 onSelectSession={handleSelectSession}
@@ -486,7 +486,7 @@ export const SessionManager: React.FC = () => {
               />
             </div>
           ) : session && sessions.length > 0 ? (
-            <div className="pl-4">{chatViews}</div>
+            <div>{chatViews}</div>
           ) : (
             <div className="flex items-center justify-center h-full text-secondary">
               <Spin size="large" tip={"Loading..."} />
